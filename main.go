@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -24,6 +25,35 @@ type NewComment struct {
 	PublishedAt string `json:"publishedAt"`
 	AuthorId    string `json:"authorId"`
 	TargetId    string `json:"targetId"`
+}
+
+var allComments []Comment = []Comment{
+	{
+		Id:          "Comment-kjh784fgevdhhdwhh7563",
+		TextFr:      "Bonjour ! je suis un commentaire.",
+		TextEn:      "Hi ! Im a comment.",
+		PublishedAt: "1639477064",
+		AuthorId:    "User-kjh784fgevdhhdwhh7563",
+		TargetId:    "Photo-bdgetr657434hfggrt8374",
+		Replies: []Comment{
+			{
+				Id:          "Comment-1234abcd",
+				TextFr:      "Je suis une réponse au commentaire",
+				TextEn:      "Im a reply!",
+				PublishedAt: "1639477064",
+				AuthorId:    "User-5647565dhfbdshs",
+				TargetId:    "Comment-kjh784fgevdhhdwhh7563",
+			},
+			{
+				Id:          "Comment-5678efgh",
+				TextFr:      "Je suis une autre reponse !",
+				TextEn:      "Im another reply!",
+				PublishedAt: "1639477064",
+				AuthorId:    "User-5342hdfgetrfiw789",
+				TargetId:    "Comment-kjh784fgevdhhdwhh7563",
+			},
+		},
+	},
 }
 
 func main() {
@@ -52,40 +82,13 @@ func get_comments(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	comments := []Comment{
-		{
-			Id:          "Comment-kjh784fgevdhhdwhh7563",
-			TextFr:      "Bonjour ! je suis un commentaire.",
-			TextEn:      "Hi ! Im a comment.",
-			PublishedAt: "1639477064",
-			AuthorId:    "User-kjh784fgevdhhdwhh7563",
-			TargetId:    "Photo-bdgetr657434hfggrt8374",
-			Replies: []Comment{
-				{
-					Id:          "Comment-1234abcd",
-					TextFr:      "Je suis une réponse au commentaire",
-					TextEn:      "Im a reply!",
-					PublishedAt: "1639477064",
-					AuthorId:    "User-5647565dhfbdshs",
-					TargetId:    "Comment-kjh784fgevdhhdwhh7563",
-				},
-				{
-					Id:          "Comment-5678efgh",
-					TextFr:      "Je suis une autre reponse !",
-					TextEn:      "Im another reply!",
-					PublishedAt: "1639477064",
-					AuthorId:    "User-5342hdfgetrfiw789",
-					TargetId:    "Comment-kjh784fgevdhhdwhh7563",
-				},
-			},
-		},
-	}
-
 	vars := mux.Vars(r)
-	matchingComments := get_matching_comments(&comments, vars["targetId"])
+	matchingComments := get_matching_comments(&allComments, vars["targetId"])
 
 	json.NewEncoder(w).Encode(matchingComments)
 }
+
+var commentIdx = 0
 
 func post_new_comment(w http.ResponseWriter, r *http.Request) {
 
@@ -95,5 +98,22 @@ func post_new_comment(w http.ResponseWriter, r *http.Request) {
 
 	_ = json.NewDecoder(r.Body).Decode(&newComment)
 
-	json.NewEncoder(w).Encode(newComment)
+	commentIdxStr := fmt.Sprint(commentIdx)
+
+	comment := Comment{
+		Id:          "Comment-" + commentIdxStr,
+		TextFr:      newComment.TextFr,
+		TextEn:      newComment.TextEn,
+		PublishedAt: "0",
+		AuthorId:    newComment.AuthorId,
+		TargetId:    newComment.TargetId,
+	}
+
+	commentIdx += 1
+
+	if newComment.TargetId != "" {
+		allComments = append(allComments, comment)
+	}
+
+	json.NewEncoder(w).Encode(allComments)
 }
