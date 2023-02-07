@@ -93,6 +93,13 @@ func generate_comment_uuid() string {
 	return strings.Replace(uuidHyphen.String(), "-", "", -1)
 }
 
+func insert_comment(c Comment) error {
+
+	allComments = append(allComments, c)
+
+	return nil
+}
+
 func post_new_comment(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
@@ -112,10 +119,15 @@ func post_new_comment(w http.ResponseWriter, r *http.Request) {
 			AuthorId:    newComment.AuthorId,
 			TargetId:    newComment.TargetId,
 		}
-		allComments = append(allComments, comment)
-	}
 
-	json.NewEncoder(w).Encode(allComments)
+		err := insert_comment(comment)
+
+		if err == nil {
+			w.WriteHeader(200)
+		}
+	} else {
+		w.WriteHeader(400)
+	}
 }
 
 func main() {
