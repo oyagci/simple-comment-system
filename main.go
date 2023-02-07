@@ -90,6 +90,14 @@ func get_comments(w http.ResponseWriter, r *http.Request) {
 
 var commentIdx = 0
 
+func is_valid_new_comment(newComment *NewComment) bool {
+	return newComment.TextFr != "" &&
+		newComment.TextEn != "" &&
+		newComment.AuthorId != "" &&
+		newComment.PublishedAt != "" &&
+		newComment.TargetId != ""
+}
+
 func post_new_comment(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
@@ -100,18 +108,17 @@ func post_new_comment(w http.ResponseWriter, r *http.Request) {
 
 	commentIdxStr := fmt.Sprint(commentIdx)
 
-	comment := Comment{
-		Id:          "Comment-" + commentIdxStr,
-		TextFr:      newComment.TextFr,
-		TextEn:      newComment.TextEn,
-		PublishedAt: "0",
-		AuthorId:    newComment.AuthorId,
-		TargetId:    newComment.TargetId,
-	}
-
 	commentIdx += 1
 
-	if newComment.TargetId != "" {
+	if is_valid_new_comment(&newComment) {
+		comment := Comment{
+			Id:          "Comment-" + commentIdxStr,
+			TextFr:      newComment.TextFr,
+			TextEn:      newComment.TextEn,
+			PublishedAt: newComment.PublishedAt,
+			AuthorId:    newComment.AuthorId,
+			TargetId:    newComment.TargetId,
+		}
 		allComments = append(allComments, comment)
 	}
 
