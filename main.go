@@ -2,10 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -56,15 +57,6 @@ var allComments []Comment = []Comment{
 	},
 }
 
-func main() {
-	r := mux.NewRouter()
-	r.HandleFunc("/target/{targetId}/comments", get_comments).Methods("GET")
-	r.HandleFunc("/target/{targetId}/comments", post_new_comment).Methods("POST")
-
-	log.Println("Listening on localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
-}
-
 func get_matching_comments(comments *[]Comment, targetId string) []Comment {
 
 	var matches []Comment
@@ -88,14 +80,17 @@ func get_comments(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(matchingComments)
 }
 
-var commentIdx = 0
-
 func is_valid_new_comment(newComment *NewComment) bool {
 	return newComment.TextFr != "" &&
 		newComment.TextEn != "" &&
 		newComment.AuthorId != "" &&
 		newComment.PublishedAt != "" &&
 		newComment.TargetId != ""
+}
+
+func generate_comment_uuid() string {
+	uuidHyphen := uuid.New()
+	return strings.Replace(uuidHyphen.String(), "-", "", -1)
 }
 
 func post_new_comment(w http.ResponseWriter, r *http.Request) {
@@ -106,13 +101,11 @@ func post_new_comment(w http.ResponseWriter, r *http.Request) {
 
 	_ = json.NewDecoder(r.Body).Decode(&newComment)
 
-	commentIdxStr := fmt.Sprint(commentIdx)
-
-	commentIdx += 1
+	uuid := generate_comment_uuid()
 
 	if is_valid_new_comment(&newComment) {
 		comment := Comment{
-			Id:          "Comment-" + commentIdxStr,
+			Id:          "Comment-" + uuid,
 			TextFr:      newComment.TextFr,
 			TextEn:      newComment.TextEn,
 			PublishedAt: newComment.PublishedAt,
@@ -123,4 +116,13 @@ func post_new_comment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(allComments)
+}
+
+func main() {
+	r := mux.NewRouter()
+	r.HandleFunc("/target/{targetId}/comments", get_comments).Methods("GET")
+	r.HandleFunc("/target/{targetId}/comments", post_new_comment).Methods("POST")
+
+	log.Println("Listening on localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
