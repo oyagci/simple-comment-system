@@ -1,10 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
+
+	_ "github.com/lib/pq"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -93,7 +97,58 @@ func generate_comment_uuid() string {
 	return strings.Replace(uuidHyphen.String(), "-", "", -1)
 }
 
+func insert_comment_db(db *sql.DB, c Comment) {
+	tx, err := db.Begin()
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	defer func() {
+		switch err {
+		case nil:
+			log.Println("Committing")
+			err = tx.Commit()
+		default:
+			log.Println("Rolling back")
+			tx.Rollback()
+		}
+	}()
+
+	stmt, err := tx.Prepare("INSERT INTO comments (id, textFr, textEn, publishedAt, authorId, targetId, replies) VALUES($1, $2, $3, TO_TIMESTAMP($4), $5, $6, $7);")
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if _, err = stmt.Exec(c.Id, c.TextFr, c.TextEn, c.PublishedAt, c.AuthorId, c.TargetId, nil); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	log.Println("Comment inserted")
+
+	return
+}
+
 func insert_comment(c Comment) error {
+
+	connStr := "user=postgres password=root dbname=postgres sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	defer func() {
+		log.Println("Closing connection")
+		db.Close()
+	}()
+
+	insert_comment_db(db, c)
 
 	allComments = append(allComments, c)
 
