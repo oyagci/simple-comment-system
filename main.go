@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
 
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 
 	"github.com/google/uuid"
@@ -31,19 +33,6 @@ type NewComment struct {
 	TargetId    string `json:"targetId"`
 }
 
-func get_matching_comments(comments *[]Comment, targetId string) []Comment {
-
-	var matches []Comment
-
-	for i := range *comments {
-		if (*comments)[i].TargetId == targetId {
-			matches = append(matches, (*comments)[i])
-		}
-	}
-
-	return matches
-}
-
 type CommentDB struct {
 	id          string
 	textfr      string
@@ -52,6 +41,88 @@ type CommentDB struct {
 	authorid    string
 	targetid    string
 	replies     []string
+}
+
+type OnCommentMessage struct {
+	Message string `json:"message"`
+	Author  string `json:"author"`
+}
+
+func query_comments(tx *sql.Tx, id string) ([]CommentDB, error) {
+
+	comments := []CommentDB{}
+
+	query_replies :=
+		`WITH RECURSIVE x AS (
+			SELECT id, textFr, textEn, publishedAt, authorId, targetId, replies
+			FROM comments
+			WHERE id = $1
+
+			UNION ALL
+
+			SELECT t.id, t.textFr, t.textEn, t.publishedAt, t.authorId, t.targetId, t.replies
+			FROM x
+			INNER JOIN comments AS t
+			ON t.targetId = x.id
+		) SELECT * FROM x;`
+
+	if rows, err := tx.Query(query_replies, id); err == nil {
+		for rows.Next() {
+			var comment_db CommentDB
+			rows.Scan(&comment_db.id, &comment_db.textfr, &comment_db.texten, &comment_db.publishedat, &comment_db.authorid, &comment_db.targetid, pq.Array(&comment_db.replies))
+			comments = append(comments, comment_db)
+		}
+		rows.Close()
+	}
+
+	return comments, nil
+}
+
+func sort_comments_db(comment_db []CommentDB) []Comment {
+
+	comments_db_map := map[string]CommentDB{}
+	comments := []Comment{}
+
+	for c := range comment_db {
+		comments_db_map[comment_db[c].id] = comment_db[c]
+	}
+
+	for c := range comment_db {
+
+		current := comment_db[c]
+
+		comment := Comment{
+			Id:       current.id,
+			TextFr:   current.textfr,
+			TextEn:   current.texten,
+			AuthorId: current.authorid,
+			TargetId: current.targetid,
+		}
+
+		for r := range current.replies {
+			current_reply := current.replies[r]
+			current_reply_db, present := comments_db_map[current_reply]
+
+			if present {
+				comment.Replies = append(comment.Replies, Comment{
+					Id:       current_reply_db.id,
+					TextFr:   current_reply_db.textfr,
+					TextEn:   current_reply_db.texten,
+					AuthorId: current_reply_db.authorid,
+					TargetId: current_reply_db.targetid,
+					Replies:  []Comment{},
+				})
+
+				delete(comments_db_map, current_reply)
+			}
+		}
+
+		if _, present := comments_db_map[comment.Id]; present {
+			comments = append(comments, comment)
+		}
+	}
+
+	return comments
 }
 
 func get_comments(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +136,6 @@ func get_comments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer func() {
-		log.Println("Closing connection")
 		db.Close()
 	}()
 
@@ -83,26 +153,21 @@ func get_comments(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		switch err {
 		case nil:
-			log.Println("Committing")
 			err = tx.Commit()
 		default:
-			log.Println("Rolling back")
 			tx.Rollback()
 		}
 	}()
 
-	var matchingComments []Comment
+	commentsDb, err := query_comments(tx, vars["targetId"])
 
-	if rows, err := tx.Query("SELECT * FROM comments WHERE id = $1;", vars["targetId"]); err != nil {
+	if err != nil {
 		log.Println(err)
-	} else {
-		var comment CommentDB
-		rows.Scan(&comment)
-		log.Println(rows.Columns())
-		//matchingComments = append(matchingComments, comment)
 	}
 
-	json.NewEncoder(w).Encode(matchingComments)
+	comments := sort_comments_db(commentsDb)
+
+	json.NewEncoder(w).Encode(comments)
 }
 
 func is_valid_new_comment(newComment *NewComment) bool {
@@ -129,22 +194,20 @@ func insert_comment_db(db *sql.DB, c Comment) {
 	defer func() {
 		switch err {
 		case nil:
-			log.Println("Committing")
 			err = tx.Commit()
 		default:
-			log.Println("Rolling back")
 			tx.Rollback()
 		}
 	}()
 
-	stmt, err := tx.Prepare("INSERT INTO comments (id, textFr, textEn, publishedAt, authorId, targetId, replies) VALUES($1, $2, $3, TO_TIMESTAMP($4), $5, $6, $7);")
+	stmt, err := tx.Prepare("INSERT INTO comments (id, textFr, textEn, publishedAt, authorId, targetId) VALUES($1, $2, $3, TO_TIMESTAMP($4), $5, $6);")
 
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	if _, err = stmt.Exec(c.Id, c.TextFr, c.TextEn, c.PublishedAt, c.AuthorId, c.TargetId, nil); err != nil {
+	if _, err = stmt.Exec(c.Id, c.TextFr, c.TextEn, c.PublishedAt, c.AuthorId, c.TargetId); err != nil {
 		log.Println(err)
 		return
 	}
@@ -172,7 +235,6 @@ func insert_comment(c Comment) error {
 	}
 
 	defer func() {
-		log.Println("Closing connection")
 		db.Close()
 	}()
 
@@ -199,13 +261,31 @@ func post_new_comment(w http.ResponseWriter, r *http.Request) {
 			PublishedAt: newComment.PublishedAt,
 			AuthorId:    newComment.AuthorId,
 			TargetId:    newComment.TargetId,
+			Replies:     []Comment{},
 		}
 
 		err := insert_comment(comment)
 
-		if err == nil {
-			w.WriteHeader(200)
+		if err != nil {
+			w.WriteHeader(400)
+			return
 		}
+
+		commentAsStr, err := json.Marshal(newComment)
+
+		log.Println("Sending payload:", string(commentAsStr))
+
+		onCommentMessage := OnCommentMessage{
+			Message: string(commentAsStr),
+			Author:  newComment.AuthorId,
+		}
+
+		jsonData, _ := json.Marshal(onCommentMessage)
+		jsonReader := bytes.NewReader(jsonData)
+
+		response, err := http.Post("http://tech-test-back.owlint.fr:8080/on_comment", "application/json", jsonReader)
+
+		w.WriteHeader(response.StatusCode)
 	} else {
 		w.WriteHeader(400)
 	}
@@ -217,5 +297,5 @@ func main() {
 	r.HandleFunc("/target/{targetId}/comments", post_new_comment).Methods("POST")
 
 	log.Println("Listening on localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	log.Fatal(http.ListenAndServe("localhost:8080", r))
 }

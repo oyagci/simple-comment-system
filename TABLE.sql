@@ -5,7 +5,7 @@ CREATE TABLE comments (
     publishedAt TIMESTAMP,
     authorId VARCHAR ( 64 ),
     targetId VARCHAR ( 64 ),
-    replies VARCHAR ( 64 ) ARRAY
+    replies VARCHAR ( 64 ) ARRAY NOT NULL DEFAULT array[]::varchar[]
 );
 
 INSERT INTO comments VALUES (
