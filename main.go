@@ -80,11 +80,11 @@ func query_comments(tx *sql.Tx, id string) ([]CommentDB, error) {
 
 func sort_comments_db(comment_db []CommentDB) []Comment {
 
-	comments_db_map := map[string]CommentDB{}
+	commentsDbMap := map[string]CommentDB{}
 	comments := []Comment{}
 
 	for c := range comment_db {
-		comments_db_map[comment_db[c].id] = comment_db[c]
+		commentsDbMap[comment_db[c].id] = comment_db[c]
 	}
 
 	for c := range comment_db {
@@ -101,25 +101,25 @@ func sort_comments_db(comment_db []CommentDB) []Comment {
 		}
 
 		for r := range current.replies {
-			current_reply := current.replies[r]
-			current_reply_db, present := comments_db_map[current_reply]
+			curReply := current.replies[r]
+			curReplyDb, present := commentsDbMap[curReply]
 
 			if present {
 				comment.Replies = append(comment.Replies, Comment{
-					Id:          current_reply_db.id,
-					TextFr:      current_reply_db.textfr,
-					TextEn:      current_reply_db.texten,
-					PublishedAt: current_reply_db.publishedat,
-					AuthorId:    current_reply_db.authorid,
-					TargetId:    current_reply_db.targetid,
+					Id:          curReplyDb.id,
+					TextFr:      curReplyDb.textfr,
+					TextEn:      curReplyDb.texten,
+					PublishedAt: curReplyDb.publishedat,
+					AuthorId:    curReplyDb.authorid,
+					TargetId:    curReplyDb.targetid,
 					Replies:     []Comment{},
 				})
 
-				delete(comments_db_map, current_reply)
+				delete(commentsDbMap, curReply)
 			}
 		}
 
-		if _, present := comments_db_map[comment.Id]; present {
+		if _, present := commentsDbMap[comment.Id]; present {
 			comments = append(comments, comment)
 		}
 	}
