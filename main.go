@@ -202,7 +202,7 @@ func insert_comment_db(db *sql.DB, c Comment) {
 		}
 	}()
 
-	stmt, err := tx.Prepare("INSERT INTO comments (id, textFr, textEn, publishedAt, authorId, targetId) VALUES($1, $2, $3, TO_TIMESTAMP($4), $5, $6);")
+	stmt, err := tx.Prepare("INSERT INTO comments (id, textFr, textEn, publishedAt, authorId, targetId) VALUES($1, $2, $3, $4, $5, $6);")
 
 	if err != nil {
 		log.Println(err)
