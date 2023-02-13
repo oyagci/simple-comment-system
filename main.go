@@ -98,6 +98,7 @@ func sort_comments_db(comment_db []CommentDB) []Comment {
 			PublishedAt: current.publishedat,
 			AuthorId:    current.authorid,
 			TargetId:    current.targetid,
+			Replies:     []Comment{},
 		}
 
 		for r := range current.replies {
@@ -220,8 +221,6 @@ func insert_comment_db(db *sql.DB, c Comment) {
 		log.Println(err)
 		return
 	}
-
-	log.Println("Comment inserted")
 
 	return
 }
