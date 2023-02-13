@@ -92,11 +92,12 @@ func sort_comments_db(comment_db []CommentDB) []Comment {
 		current := comment_db[c]
 
 		comment := Comment{
-			Id:       current.id,
-			TextFr:   current.textfr,
-			TextEn:   current.texten,
-			AuthorId: current.authorid,
-			TargetId: current.targetid,
+			Id:          current.id,
+			TextFr:      current.textfr,
+			TextEn:      current.texten,
+			PublishedAt: current.publishedat,
+			AuthorId:    current.authorid,
+			TargetId:    current.targetid,
 		}
 
 		for r := range current.replies {
@@ -105,12 +106,13 @@ func sort_comments_db(comment_db []CommentDB) []Comment {
 
 			if present {
 				comment.Replies = append(comment.Replies, Comment{
-					Id:       current_reply_db.id,
-					TextFr:   current_reply_db.textfr,
-					TextEn:   current_reply_db.texten,
-					AuthorId: current_reply_db.authorid,
-					TargetId: current_reply_db.targetid,
-					Replies:  []Comment{},
+					Id:          current_reply_db.id,
+					TextFr:      current_reply_db.textfr,
+					TextEn:      current_reply_db.texten,
+					PublishedAt: current_reply_db.publishedat,
+					AuthorId:    current_reply_db.authorid,
+					TargetId:    current_reply_db.targetid,
+					Replies:     []Comment{},
 				})
 
 				delete(comments_db_map, current_reply)
